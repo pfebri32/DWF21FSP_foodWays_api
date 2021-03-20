@@ -2,14 +2,24 @@ const express = require('express');
 
 const router = express.Router();
 
-const { login, register } = require('../controllers/auth');
+// Middlewares.
+const { authenticated, hasRoles } = require('../middlewares/auth');
 
-router.post('/api/v1/login', login);
-router.post('/api/v1/register', register);
+// Controllers.
+const { register, login } = require('../controllers/auth');
+const { getUsers, updateUser } = require('../controllers/user');
+const { getProduct } = require('../controllers/product');
 
-const { getUsers, deleteUser } = require('../controllers/user');
+// Routes.
+// Routes for auth.
+router.post('/register', register);
+router.post('/login', login);
 
-router.get('/api/v1/users', getUsers);
-router.delete('/api/v1/user/:id', deleteUser);
+// Routs for user.
+router.get('/users', authenticated, getUsers);
+router.patch('/user/update', authenticated, updateUser);
+
+// Routes for product.
+router.get('/product/:id', authenticated, hasRoles(['partner']), getProduct);
 
 module.exports = router;

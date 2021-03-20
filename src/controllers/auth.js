@@ -1,57 +1,30 @@
-const e = require('express');
+const bcrypt = require('bcrypt');
+const Jwt = require('jsonwebtoken');
+const Joi = require('joi');
 const { User } = require('../../models');
-
-exports.login = async (req, res) => {
-  try {
-    const { body } = req;
-    const { email, password } = body;
-
-    // Find user with a same email.
-    const user = await User.findOne({
-      where: {
-        email,
-      },
-    });
-
-    // Check if user is exist.
-    if (user) {
-      // Check if an email with a same password.
-      if (user.password === password) {
-        // When password is correct.
-        return res.send({
-          status: 'success',
-          message: 'Login is success.',
-          data: {
-            user: {
-              name: user.fullname,
-              email: user.email,
-              token: 'token',
-            },
-          },
-        });
-      } else {
-        // When password is incorrect.
-        return res.send({
-          status: 'failed',
-          message: 'Your password is incorrect.',
-        });
-      }
-    } else {
-      // When user with email doesn't exist.
-      return res.send({
-        status: 'failed',
-        message: "Your email doesn't exist.",
-      });
-    }
-  } catch (err) {
-    console.log(err);
-  }
-};
 
 exports.register = async (req, res) => {
   try {
     const { body } = req;
-    const { email } = body;
+    const { email, password } = body;
+
+    // Validate input.
+    const schema = Joi.object({
+      email: Joi.string().email().min(6).max(50).required(),
+      password: Joi.string().min(6).max(24).required(),
+      name: Joi.string().min(4).max(50).required(),
+      phone: Joi.string().min(8).max(13),
+      gender: Joi.string().min(4).max(50),
+      role: Joi.any().valid('user', 'partner'),
+    });
+    const { error } = schema.validate(body);
+
+    if (error) {
+      return res.send({
+        status: 'Invalid',
+        message: error.details.message[0],
+      });
+    }
 
     // Find user with a same email.
     const isEmailExist = await User.findOne({
@@ -64,23 +37,96 @@ exports.register = async (req, res) => {
     if (isEmailExist) {
       return res.send({
         status: 'failed',
-        message: 'User with this email is already exist.',
+        message: 'Email is already exist.',
       });
     }
 
+    // Encrypt password.
+    const hashedPassword = await bcrypt.hash(
+      password,
+      parseInt(process.env.HASH_STRENGTH)
+    );
+
     // Create new user.
-    const user = await User.create(body);
-    const { fullname, role } = user;
+    const user = await User.create({
+      ...body,
+      password: hashedPassword,
+    });
+    const { name, role } = user;
+
+    // Create token.
+    const token = Jwt.sign({ id: user.id }, process.env.SECRET_KEY);
 
     res.send({
       status: 'success',
       message: 'Resgiter is success.',
       data: {
         user: {
-          fullname,
-          token: 'token',
+          name,
+          token,
           role,
         },
+      },
+    });
+  } catch (err) {
+    console.log(err);
+  }
+};
+
+exports.login = async (req, res) => {
+  try {
+    const { body } = req;
+    const { email, password } = body;
+
+    // Validate input.
+    const schema = Joi.object({
+      email: Joi.string().email().min(6).max(50).required(),
+      password: Joi.string().min(6).max(24).required(),
+    });
+    const { error } = schema.validate(body);
+
+    if (error) {
+      return res.send({
+        status: 'Invalid',
+        message: error.details.message[0],
+      });
+    }
+
+    // Validate user with a same email.
+    const user = await User.findOne({
+      where: {
+        email,
+      },
+    });
+
+    if (!user) {
+      return res.send({
+        status: 'Invalid',
+        message: 'Your email and password are incorrect.',
+      });
+    }
+
+    // Validate password.
+    const isValid = await bcrypt.compare(password, user.password);
+
+    if (!isValid) {
+      return res.send({
+        status: 'Invalid',
+        message: 'Your email and password are incorrect.',
+      });
+    }
+
+    // Create token.
+    const { name, role } = user;
+    const token = Jwt.sign({ id: user.id }, process.env.SECRET_KEY);
+
+    res.send({
+      status: 'Login success.',
+      message: 'Login is successful.',
+      data: {
+        name,
+        token,
+        role,
       },
     });
   } catch (err) {
