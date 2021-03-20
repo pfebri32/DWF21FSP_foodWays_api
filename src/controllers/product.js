@@ -89,7 +89,7 @@ exports.getProducts = async (req, res) => {
   }
 };
 
-exports.getProductsByPartner = async (req, res) => {
+exports.getProductsByPartnerId = async (req, res) => {
   try {
     const { id } = req.params;
 
