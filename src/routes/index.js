@@ -38,4 +38,6 @@ router.patch(
   updateProduct
 );
 
+// Routes for order.
+
 module.exports = router;

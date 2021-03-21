@@ -12,8 +12,10 @@ module.exports = (sequelize, DataTypes) => {
         as: 'user',
       });
       Product.belongsToMany(models.Order, {
+        as: 'order',
         through: {
           model: 'OrderProduct',
+          as: 'orderProduct',
         },
       });
     }
