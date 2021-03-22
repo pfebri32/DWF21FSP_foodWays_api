@@ -15,18 +15,21 @@ exports.getUsers = async (req, res) => {
       },
     });
   } catch (err) {
-    console.log(err);
+    return res.send({
+      status: 'failed',
+      message: err,
+    });
   }
 };
 
 exports.deleteUser = async (req, res) => {
   try {
-    const { body } = req;
-    const { id } = body;
+    const { params } = req;
+    const { id } = params;
 
     await User.destroy({
       where: {
-        id,
+        id: parseInt(id),
       },
     });
 
@@ -35,7 +38,10 @@ exports.deleteUser = async (req, res) => {
       message: 'User has been deleted.',
     });
   } catch (err) {
-    console.log(err);
+    return res.send({
+      status: 'failed',
+      message: err,
+    });
   }
 };
 
@@ -57,7 +63,7 @@ exports.updateUser = async (req, res) => {
 
     if (error) {
       return res.send({
-        status: 'Invalid',
+        status: 'invalid',
         message: error.details.message[0],
       });
     }
@@ -66,6 +72,15 @@ exports.updateUser = async (req, res) => {
       where: {
         id: user.id,
       },
+      fields: [
+        'name',
+        'phone',
+        'gender',
+        'img',
+        'loc_address',
+        'loca_lat',
+        'loc_lng',
+      ],
     });
 
     res.send({
@@ -76,6 +91,9 @@ exports.updateUser = async (req, res) => {
       },
     });
   } catch (err) {
-    console.log(err);
+    return res.send({
+      status: 'failed',
+      message: err,
+    });
   }
 };

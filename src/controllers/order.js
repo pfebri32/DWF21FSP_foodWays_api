@@ -1,6 +1,7 @@
 const Joi = require('joi');
+const { Op } = require('sequelize');
 
-const { Order, Product, OrderProduct } = require('../../models');
+const { Order, Product, OrderProduct, User } = require('../../models');
 
 exports.getOrderByPartnerId = async (req, res) => {
   try {
@@ -11,7 +12,7 @@ exports.getOrderByPartnerId = async (req, res) => {
       include: [
         {
           model: Product,
-          as: 'product',
+          as: 'products',
           through: {
             model: OrderProduct,
             as: 'orderProduct',
@@ -19,7 +20,17 @@ exports.getOrderByPartnerId = async (req, res) => {
         },
         {
           model: User,
-          as: 'user',
+          as: 'customer',
+          attributes: {
+            exclude: ['password'],
+          },
+        },
+        {
+          model: User,
+          as: 'partner',
+          attributes: {
+            exclude: ['password'],
+          },
         },
       ],
       where: {
@@ -34,20 +45,22 @@ exports.getOrderByPartnerId = async (req, res) => {
       },
     });
   } catch (err) {
-    console.log(err);
+    return res.send({
+      status: 'failed',
+      message: err,
+    });
   }
 };
 
 exports.getOrderByCustomerId = async (req, res) => {
   try {
-    const { params } = req;
-    const { id } = params;
+    const { user } = req;
 
     const orders = await Order.findAll({
       include: [
         {
           model: Product,
-          as: 'product',
+          as: 'products',
           through: {
             model: OrderProduct,
             as: 'orderProduct',
@@ -55,11 +68,21 @@ exports.getOrderByCustomerId = async (req, res) => {
         },
         {
           model: User,
-          as: 'user',
+          as: 'customer',
+          attributes: {
+            exclude: ['password'],
+          },
+        },
+        {
+          model: User,
+          as: 'partner',
+          attributes: {
+            exclude: ['password'],
+          },
         },
       ],
       where: {
-        customerId: parseInt(id),
+        customerId: parseInt(user.id),
       },
     });
 
@@ -70,7 +93,10 @@ exports.getOrderByCustomerId = async (req, res) => {
       },
     });
   } catch (err) {
-    console.log(err);
+    return res.send({
+      status: 'failed',
+      message: err,
+    });
   }
 };
 
@@ -83,7 +109,7 @@ exports.getOrderById = async (req, res) => {
       include: [
         {
           model: Product,
-          as: 'product',
+          as: 'products',
           through: {
             model: OrderProduct,
             as: 'orderProduct',
@@ -91,7 +117,17 @@ exports.getOrderById = async (req, res) => {
         },
         {
           model: User,
-          as: 'user',
+          as: 'customer',
+          attributes: {
+            exclude: ['password'],
+          },
+        },
+        {
+          model: User,
+          as: 'partner',
+          attributes: {
+            exclude: ['password'],
+          },
         },
       ],
       where: {
@@ -106,7 +142,10 @@ exports.getOrderById = async (req, res) => {
       },
     });
   } catch (err) {
-    console.log(err);
+    return res.send({
+      status: 'failed',
+      message: err,
+    });
   }
 };
 
@@ -118,7 +157,8 @@ exports.addOrder = async (req, res) => {
     const schema = Joi.object({
       products: Joi.array().items(
         Joi.object({
-          quantity: Joi.number().min(0),
+          id: Joi.number().required(),
+          quantity: Joi.number().min(0).required(),
         })
       ),
     });
@@ -126,18 +166,18 @@ exports.addOrder = async (req, res) => {
 
     if (error) {
       return res.send({
-        status: 'Invalid',
+        status: 'invalid',
         message: error.details.message[0],
       });
     }
 
     // Get all products id.
     let productsId = [];
-    for (let i = 0; i < body.length; i++) {
-      productsId.push(body[i].id);
+    for (let i = 0; i < body.products.length; i++) {
+      productsId.push(body.products[i].id);
     }
 
-    const products = await Product.findOne({
+    const products = await Product.findAll({
       where: {
         id: {
           [Op.or]: productsId,
@@ -145,9 +185,9 @@ exports.addOrder = async (req, res) => {
       },
     });
 
-    if (products.length < 1 || products.length !== body.length) {
+    if (products.length < 1 || products.length !== body.products.length) {
       return res.send({
-        status: 'Order denied.',
+        status: 'invalid',
         message: "Some from your product doesn't exist.",
       });
     }
@@ -157,7 +197,7 @@ exports.addOrder = async (req, res) => {
     for (let i = 1; i < products.length; i++) {
       if (partnerId !== products[i].userId) {
         return res.send({
-          status: 'Order denied.',
+          status: 'invalid',
           message: 'Customer only can order the menu from a same place.',
         });
       }
@@ -166,24 +206,27 @@ exports.addOrder = async (req, res) => {
     // Create order.
     const order = await Order.create({
       status: 'Approval',
-      customerId: parseInt(user.id),
-      partnerId,
+      customerId: user.id,
+      partnerId: partnerId,
     });
 
     // Create bulk array for order product.
     let bulk = [];
     for (let i = 0; i < products.length; i++) {
       bulk.push({
-        quantity: body[i].quantity,
-        productId: body[i].id,
+        quantity: body.products[i].quantity,
+        productId: body.products[i].id,
         orderId: order.id,
       });
     }
 
-    await OrderProduct.bulkCreate(body);
+    await OrderProduct.bulkCreate(bulk);
 
     // Get user who order.
     const customer = await User.findOne({
+      attributes: {
+        exclude: ['password'],
+      },
       where: {
         id: parseInt(user.id),
       },
@@ -191,8 +234,8 @@ exports.addOrder = async (req, res) => {
 
     const orderData = await Order.findOne({
       include: {
-        model: 'Product',
-        as: 'Products',
+        model: Product,
+        as: 'products',
         through: {
           model: OrderProduct,
           as: 'orderProduct',
@@ -215,7 +258,10 @@ exports.addOrder = async (req, res) => {
       },
     });
   } catch (err) {
-    console.log(err);
+    return res.send({
+      status: 'failed',
+      message: err,
+    });
   }
 };
 
@@ -233,7 +279,7 @@ exports.updateOrder = async (req, res) => {
 
     if (error) {
       return res.send({
-        status: 'Invalid',
+        status: 'invalid',
         message: error.details.message[0],
       });
     }
@@ -253,25 +299,49 @@ exports.updateOrder = async (req, res) => {
       status: 'success',
       message: 'Your order has been updated.',
     });
-  } catch (err) {}
+  } catch (err) {
+    return res.send({
+      status: 'failed',
+      message: err,
+    });
+  }
 };
 
-exports.deleteOrder = async (req, res) => {};
-try {
-  const { params } = req;
-  const { id } = params;
+exports.deleteOrder = async (req, res) => {
+  try {
+    const { params, user } = req;
+    const { id } = params;
 
-  await Order.destroy({
-    where: {
-      id: parseInt(id),
-    },
-  });
+    const order = await Order.findOne({
+      where: {
+        id,
+      },
+    });
 
-  res.send({
-    status: 'success',
-    message: 'Your order has been deleted.',
-    data: {
-      id,
-    },
-  });
-} catch (err) {}
+    if (order.partnerId !== parseInt(user.id)) {
+      return res.send({
+        status: 'Access Denied',
+        message: "You don't have right to access.",
+      });
+    }
+
+    await Order.destroy({
+      where: {
+        id: parseInt(id),
+      },
+    });
+
+    res.send({
+      status: 'success',
+      message: 'Your order has been deleted.',
+      data: {
+        id,
+      },
+    });
+  } catch (err) {
+    return res.send({
+      status: 'failed',
+      message: err,
+    });
+  }
+};

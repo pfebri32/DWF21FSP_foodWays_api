@@ -12,16 +12,16 @@ exports.register = async (req, res) => {
     const schema = Joi.object({
       email: Joi.string().email().min(6).max(50).required(),
       password: Joi.string().min(6).max(24).required(),
-      name: Joi.string().min(4).max(50).required(),
-      phone: Joi.string().min(8).max(13),
-      gender: Joi.string().min(4).max(50),
+      name: Joi.string().min(1).max(50).required(),
+      phone: Joi.string().min(1).max(255),
+      gender: Joi.string().min(1).max(255),
       role: Joi.any().valid('user', 'partner'),
     });
     const { error } = schema.validate(body);
 
     if (error) {
       return res.send({
-        status: 'Invalid',
+        status: 'invalid',
         message: error.details.message[0],
       });
     }
@@ -57,7 +57,7 @@ exports.register = async (req, res) => {
     // Create token.
     const token = Jwt.sign({ id: user.id }, process.env.SECRET_KEY);
 
-    res.send({
+    return res.send({
       status: 'success',
       message: 'Resgiter is success.',
       data: {
@@ -69,7 +69,10 @@ exports.register = async (req, res) => {
       },
     });
   } catch (err) {
-    console.log(err);
+    return res.send({
+      status: 'failed',
+      message: err,
+    });
   }
 };
 
@@ -87,7 +90,7 @@ exports.login = async (req, res) => {
 
     if (error) {
       return res.send({
-        status: 'Invalid',
+        status: 'invalid',
         message: error.details.message[0],
       });
     }
@@ -101,7 +104,7 @@ exports.login = async (req, res) => {
 
     if (!user) {
       return res.send({
-        status: 'Invalid',
+        status: 'invalid',
         message: 'Your email and password are incorrect.',
       });
     }
@@ -111,7 +114,7 @@ exports.login = async (req, res) => {
 
     if (!isValid) {
       return res.send({
-        status: 'Invalid',
+        status: 'invalid',
         message: 'Your email and password are incorrect.',
       });
     }
@@ -120,8 +123,8 @@ exports.login = async (req, res) => {
     const { name, role } = user;
     const token = Jwt.sign({ id: user.id }, process.env.SECRET_KEY);
 
-    res.send({
-      status: 'Login success.',
+    return res.send({
+      status: 'success',
       message: 'Login is successful.',
       data: {
         name,
@@ -130,6 +133,9 @@ exports.login = async (req, res) => {
       },
     });
   } catch (err) {
-    console.log(err);
+    return res.send({
+      status: 'failed',
+      message: err,
+    });
   }
 };
